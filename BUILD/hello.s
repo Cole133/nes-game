@@ -22,19 +22,43 @@
 	.import		_vram_adr
 	.import		_vram_put
 	.export		_i
+	.export		_j
 	.export		_pad1
-	.export		_x
-	.export		_y
-	.export		_jump
-	.export		_dy
-	.export		_text
+	.export		_p1_facing
+	.export		_p1_x
+	.export		_p1_y
+	.export		_b1_x
+	.export		_b1_y
+	.export		_b1
+	.export		_p1_dy
+	.export		_p1_dx
+	.export		_b1_vx
+	.export		_pad2
+	.export		_p2_facing
+	.export		_p2_x
+	.export		_p2_y
+	.export		_b2_x
+	.export		_b2_y
+	.export		_b2
+	.export		_p2_dy
+	.export		_p2_dx
+	.export		_b2_vx
+	.export		_platforms
 	.export		_palette
 	.export		_main
 
 .segment	"RODATA"
 
-_text:
-	.byte	$73,$69,$78,$20,$73,$65,$76,$65,$6E,$00
+_platforms:
+	.byte	$28
+	.byte	$B4
+	.byte	$30
+	.byte	$8C
+	.byte	$B4
+	.byte	$30
+	.byte	$64
+	.byte	$9B
+	.byte	$20
 _palette:
 	.byte	$0F
 	.byte	$16
@@ -59,15 +83,47 @@ _palette:
 .segment	"ZEROPAGE"
 _i:
 	.res	1,$00
+_j:
+	.res	1,$00
 _pad1:
 	.res	1,$00
-_x:
+_p1_facing:
 	.res	1,$00
-_y:
+_p1_x:
 	.res	1,$00
-_jump:
+_p1_y:
 	.res	1,$00
-_dy:
+_b1_x:
+	.res	1,$00
+_b1_y:
+	.res	1,$00
+_b1:
+	.res	1,$00
+_p1_dy:
+	.res	1,$00
+_p1_dx:
+	.res	1,$00
+_b1_vx:
+	.res	1,$00
+_pad2:
+	.res	1,$00
+_p2_facing:
+	.res	1,$00
+_p2_x:
+	.res	1,$00
+_p2_y:
+	.res	1,$00
+_b2_x:
+	.res	1,$00
+_b2_y:
+	.res	1,$00
+_b2:
+	.res	1,$00
+_p2_dy:
+	.res	1,$00
+_p2_dx:
+	.res	1,$00
+_b2_vx:
 	.res	1,$00
 
 ; ---------------------------------------------------------------
@@ -81,14 +137,40 @@ _dy:
 .segment	"CODE"
 
 ;
-; x = 128;
+; p1_x = 40;
 ;
-	lda     #$80
-	sta     _x
+	lda     #$28
+	sta     _p1_x
 ;
-; y = 128;
+; p2_x = 200;
 ;
-	sta     _y
+	lda     #$C8
+	sta     _p2_x
+;
+; p1_y = 200;
+;
+	sta     _p1_y
+;
+; p2_y = 200;
+;
+	sta     _p2_y
+;
+; p1_dy = 0;
+;
+	lda     #$00
+	sta     _p1_dy
+;
+; p1_dx = 0;
+;
+	sta     _p1_dx
+;
+; p2_dy = 0;
+;
+	sta     _p2_dy
+;
+; p2_dx = 0;
+;
+	sta     _p2_dx
 ;
 ; ppu_off(); // screen off
 ;
@@ -106,37 +188,155 @@ _dy:
 	ldx     #>(_palette)
 	jsr     _pal_spr
 ;
-; vram_adr(NTADR_A(2,26)); // screen is 32 x 30 tiles
+; vram_adr(NTADR_A(0,26)); // screen is 32 x 30 tiles
 ;
 	ldx     #$23
-	lda     #$42
+	lda     #$40
 	jsr     _vram_adr
 ;
-; for (i=0; i<28; ++i){
+; for (i=0; i<32; ++i){
 ;
 	lda     #$00
 	sta     _i
-L001C:	lda     _i
-	cmp     #$1C
-	bcs     L0003
+L00B1:	lda     _i
+	cmp     #$20
+	bcs     L00B2
 ;
 ; vram_put(0x01);
 ;
 	lda     #$01
 	jsr     _vram_put
 ;
-; for (i=0; i<28; ++i){
+; for (i=0; i<32; ++i){
 ;
 	inc     _i
-	jmp     L001C
+	jmp     L00B1
+;
+; for (i = 0; i < 3; i++){
+;
+L00B2:	lda     #$00
+	sta     _i
+L00B3:	lda     _i
+	cmp     #$03
+	jcs     L0007
+;
+; vram_adr(NTADR_A((platforms[i].x + j) / 8 , platforms[i].y / 8));
+;
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$01
+	ldx     #$00
+	lda     (ptr1),y
+	lsr     a
+	lsr     a
+	lsr     a
+	jsr     aslax4
+	stx     tmp1
+	asl     a
+	rol     tmp1
+	ldx     tmp1
+	sta     sreg
+	stx     sreg+1
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	sta     ptr1
+	txa
+	clc
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #<(_platforms)
+	ldx     #$00
+	lda     (ptr1),y
+	clc
+	adc     _j
+	bcc     L00A8
+	inx
+L00A8:	cpx     #$00
+	bpl     L000A
+	sta     regsave
+	stx     regsave+1
+	cpx     #$FF
+	bne     L000C
+	cmp     #$F9
+L000C:	jsr     boolult
+	lsr     a
+	lda     regsave
+	ldx     regsave+1
+	bcs     L000A
+	ldx     #$00
+	txa
+	jmp     L000B
+L000A:	jsr     asrax3
+L000B:	ora     sreg
+	pha
+	txa
+	ora     sreg+1
+	tax
+	pla
+	pha
+	txa
+	ora     #$20
+	tax
+	pla
+	jsr     _vram_adr
+;
+; for(j = 0; j < (platforms[i].w / 8); j++){
+;
+	lda     #$00
+	sta     _j
+	tax
+L00B4:	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$02
+	lda     (ptr1),y
+	lsr     a
+	lsr     a
+	lsr     a
+	cmp     _j
+	bcc     L00B5
+	beq     L00B5
+;
+; vram_put(0x01);
+;
+	lda     #$01
+	jsr     _vram_put
+;
+; for(j = 0; j < (platforms[i].w / 8); j++){
+;
+	ldx     #$00
+	inc     _j
+	jmp     L00B4
+;
+; for (i = 0; i < 3; i++){
+;
+L00B5:	inc     _i
+	jmp     L00B3
 ;
 ; ppu_on_all(); // turn on screen
 ;
-L0003:	jsr     _ppu_on_all
+L0007:	jsr     _ppu_on_all
 ;
 ; ppu_wait_nmi();
 ;
-L0006:	jsr     _ppu_wait_nmi
+L0011:	jsr     _ppu_wait_nmi
+;
+; oam_clear(); 
+;
+	jsr     _oam_clear
 ;
 ; pad1 = pad_poll(0);
 ;
@@ -144,95 +344,755 @@ L0006:	jsr     _ppu_wait_nmi
 	jsr     _pad_poll
 	sta     _pad1
 ;
+; pad2 = pad_poll(1);
+;
+	lda     #$01
+	jsr     _pad_poll
+	sta     _pad2
+;
 ; if(pad1 & PAD_LEFT){
 ;
+	lda     _pad1
 	and     #$02
-	beq     L001D
+	beq     L00B6
 ;
-; if(x>0) --x;
-;
-	lda     _x
-	beq     L001D
-	dec     _x
-;
-; if(pad1 & PAD_RIGHT){
-;
-L001D:	lda     _pad1
-	and     #$01
-	beq     L001E
-;
-; if(x<255) ++x;
-;
-	lda     _x
-	cmp     #$FF
-	bcs     L001E
-	inc     _x
-;
-; if((pad1 & PAD_A) && (y == FLOOR_Y)){
-;
-L001E:	lda     _pad1
-	and     #$80
-	beq     L0022
-	lda     _y
-	cmp     #$C0
-	bne     L0022
-;
-; dy = -8;
-;
-	lda     #$F8
-	sta     _dy
-;
-; if (y < FLOOR_Y) { dy += 1; }
-;
-L0022:	lda     _y
-	cmp     #$C0
-	bcs     L0023
-	inc     _dy
-;
-; if (dy > 4) { dy = 4; }
-;
-L0023:	lda     _dy
-	sec
-	sbc     #$05
-	bvs     L0015
-	eor     #$80
-L0015:	bpl     L0024
-	lda     #$04
-	sta     _dy
-;
-; y += dy;
-;
-L0024:	lda     _dy
-	clc
-	adc     _y
-	sta     _y
-;
-; if(y >= FLOOR_Y){
-;
-	cmp     #$C0
-	bcc     L0017
-;
-; y = FLOOR_Y;
-;
-	lda     #$C0
-	sta     _y
-;
-; dy = 0;
+; p1_facing = 0;
 ;
 	lda     #$00
-	sta     _dy
+	sta     _p1_facing
 ;
-; oam_clear(); 
+; if(p1_dx > -3) --p1_dx;
 ;
-L0017:	jsr     _oam_clear
+	lda     _p1_dx
+	sec
+	sbc     #$FE
+	bvs     L0017
+	eor     #$80
+L0017:	bpl     L00B9
+	dec     _p1_dx
+	bpl     L00B9
 ;
-; oam_spr(x, y, 0x41, 0);
+; else if(pad1 & PAD_RIGHT){
+;
+	jmp     L00B9
+L00B6:	lda     _pad1
+	and     #$01
+	beq     L00B7
+;
+; p1_facing = 1;
+;
+	lda     #$01
+	sta     _p1_facing
+;
+; if(p1_dx < 3) ++p1_dx;
+;
+	lda     _p1_dx
+	sec
+	sbc     #$03
+	bvc     L001D
+	eor     #$80
+L001D:	bpl     L00B9
+	inc     _p1_dx
+	bpl     L00B9
+;
+; else{
+;
+	jmp     L00B9
+;
+; if(p1_dx > 0) --p1_dx;
+;
+L00B7:	lda     _p1_dx
+	sec
+	sbc     #$01
+	bvs     L0022
+	eor     #$80
+L0022:	bpl     L00B8
+	dec     _p1_dx
+;
+; if(p1_dx < 0) ++p1_dx;
+;
+L00B8:	lda     _p1_dx
+	asl     a
+	bcc     L00B9
+	inc     _p1_dx
+;
+; if(p1_dx > 0 && p1_x < 255) p1_x += p1_dx;
+;
+L00B9:	lda     _p1_dx
+	sec
+	sbc     #$01
+	bvs     L0029
+	eor     #$80
+L0029:	bpl     L00BF
+	lda     _p1_x
+	cmp     #$FF
+	bcs     L00BF
+	lda     _p1_dx
+	clc
+	adc     _p1_x
+	sta     _p1_x
+;
+; if(p1_dx < 0 && p1_x > 0) p1_x += p1_dx;
+;
+L00BF:	lda     _p1_dx
+	asl     a
+	bcc     L00C5
+	lda     _p1_x
+	beq     L00C5
+	lda     _p1_dx
+	clc
+	adc     _p1_x
+	sta     _p1_x
+;
+; if((pad1 & PAD_A) && (p1_y == FLOOR_Y)){
+;
+L00C5:	lda     _pad1
+	and     #$80
+	beq     L00C9
+	lda     _p1_y
+	cmp     #$C0
+	bne     L00C9
+;
+; p1_dy = -8;
+;
+	lda     #$F8
+	sta     _p1_dy
+;
+; if (p1_dy < 4) p1_dy += 1;
+;
+L00C9:	lda     _p1_dy
+	sec
+	sbc     #$04
+	bvc     L003A
+	eor     #$80
+L003A:	bpl     L00CA
+	inc     _p1_dy
+;
+; p1_y += p1_dy;
+;
+L00CA:	lda     _p1_dy
+	clc
+	adc     _p1_y
+	sta     _p1_y
+;
+; if(p1_dy >= 0){
+;
+	ldx     _p1_dy
+	jmi     L00D3
+;
+; if(p1_y >= FLOOR_Y){
+;
+	lda     _p1_y
+	cmp     #$C0
+	lda     #$00
+	bcc     L00CE
+;
+; p1_y = FLOOR_Y;
+;
+	lda     #$C0
+	sta     _p1_y
+;
+; p1_dy = 0;
+;
+	lda     #$00
+	sta     _p1_dy
+;
+; for(i = 0; i < 3; i++){
+;
+L00CE:	sta     _i
+L00CF:	lda     _i
+	cmp     #$03
+	jcs     L00D3
+;
+; if (p1_y >= platforms[i].y && p1_y < platforms[i].y + 8){
+;
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$01
+	lda     (ptr1),y
+	cmp     _p1_y
+	beq     L00D0
+	jcs     L00D2
+L00D0:	lda     _p1_y
+	jsr     pusha0
+	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$01
+	ldx     #$00
+	lda     (ptr1),y
+	clc
+	adc     #$08
+	bcc     L0046
+	inx
+L0046:	jsr     tosicmp
+	jpl     L00D2
+;
+; if (p1_x + 8 > platforms[i].x && p1_x < platforms[i].x + platforms[i].w){
+;
+	ldx     #$00
+	lda     _p1_x
+	clc
+	adc     #$08
+	bcc     L004A
+	inx
+L004A:	jsr     pushax
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	sta     ptr1
+	txa
+	clc
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #<(_platforms)
+	lda     (ptr1),y
+	jsr     tosicmp0
+	bmi     L00D2
+	beq     L00D2
+	lda     _p1_x
+	jsr     pusha0
+	lda     _i
+	jsr     mulax3
+	sta     ptr1
+	txa
+	clc
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #<(_platforms)
+	lda     (ptr1),y
+	sta     sreg
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$02
+	ldx     #$00
+	lda     (ptr1),y
+	clc
+	adc     sreg
+	bcc     L00A9
+	inx
+L00A9:	jsr     tosicmp
+	bpl     L00D2
+;
+; p1_y = platforms[i].y + 16;
+;
+	ldx     #$00
+	lda     _i
+	jsr     mulax3
+	clc
+	adc     #<(_platforms)
+	sta     ptr1
+	txa
+	adc     #>(_platforms)
+	sta     ptr1+1
+	ldy     #$01
+	lda     (ptr1),y
+	clc
+	adc     #$10
+	sta     _p1_y
+;
+; p1_dy = 0;
+;
+	lda     #$00
+	sta     _p1_dy
+;
+; for(i = 0; i < 3; i++){
+;
+L00D2:	inc     _i
+	jmp     L00CF
+;
+; if( (pad1 & PAD_B) && (b1 == 0)){
+;
+L00D3:	lda     _pad1
+	and     #$40
+	beq     L00D8
+	lda     _b1
+	bne     L00D8
+;
+; b1_y = p1_y + 2;
+;
+	lda     _p1_y
+	clc
+	adc     #$02
+	sta     _b1_y
+;
+; b1 = 1;
+;
+	lda     #$01
+	sta     _b1
+;
+; if(p1_facing == 0){
+;
+	lda     _p1_facing
+	bne     L00D7
+;
+; b1_x = p1_x - 4;
+;
+	lda     _p1_x
+	sec
+	sbc     #$04
+	sta     _b1_x
+;
+; b1_vx = -4;
+;
+	lda     #$FC
+	sta     _b1_vx
+;
+; p1_dx = 8;
+;
+	lda     #$08
+;
+; } else {
+;
+	jmp     L00AB
+;
+; b1_x = p1_x + 4;
+;
+L00D7:	lda     _p1_x
+	clc
+	adc     #$04
+	sta     _b1_x
+;
+; b1_vx = 4;
+;
+	lda     #$04
+	sta     _b1_vx
+;
+; p1_dx = -8;
+;
+	lda     #$F8
+L00AB:	sta     _p1_dx
+;
+; if(b1 == 1){
+;
+L00D8:	lda     _b1
+	cmp     #$01
+	bne     L00DB
+;
+; oam_spr(b1_x, b1_y, 0x02, 0);
 ;
 	jsr     decsp3
-	lda     _x
+	lda     _b1_x
 	ldy     #$02
 	sta     (c_sp),y
-	lda     _y
+	lda     _b1_y
+	dey
+	sta     (c_sp),y
+	lda     #$02
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; b1_x += b1_vx;
+;
+	lda     _b1_vx
+	clc
+	adc     _b1_x
+	sta     _b1_x
+;
+; if(b1_x > 250) b1 = 0;
+;
+	cmp     #$FB
+	bcc     L00DB
+	lda     #$00
+	sta     _b1
+;
+; if(pad2 & PAD_LEFT){
+;
+L00DB:	lda     _pad2
+	and     #$02
+	beq     L00DC
+;
+; p2_facing = 0;
+;
+	lda     #$00
+	sta     _p2_facing
+;
+; if(p2_dx > -3) --p2_dx;
+;
+	lda     _p2_dx
+	sec
+	sbc     #$FE
+	bvs     L005E
+	eor     #$80
+L005E:	bpl     L00DF
+	dec     _p2_dx
+	bpl     L00DF
+;
+; else if(pad2 & PAD_RIGHT){
+;
+	jmp     L00DF
+L00DC:	lda     _pad2
+	and     #$01
+	beq     L00DD
+;
+; p2_facing = 1;
+;
+	lda     #$01
+	sta     _p2_facing
+;
+; if(p2_dx < 3) ++p2_dx;
+;
+	lda     _p2_dx
+	sec
+	sbc     #$03
+	bvc     L0064
+	eor     #$80
+L0064:	bpl     L00DF
+	inc     _p2_dx
+	bpl     L00DF
+;
+; else{
+;
+	jmp     L00DF
+;
+; if(p2_dx > 0) --p2_dx;
+;
+L00DD:	lda     _p2_dx
+	sec
+	sbc     #$01
+	bvs     L0069
+	eor     #$80
+L0069:	bpl     L00DE
+	dec     _p2_dx
+;
+; if(p2_dx < 0) ++p2_dx;
+;
+L00DE:	lda     _p2_dx
+	asl     a
+	bcc     L00DF
+	inc     _p2_dx
+;
+; if(p2_dx > 0 && p2_x < 255) p2_x += p2_dx;
+;
+L00DF:	lda     _p2_dx
+	sec
+	sbc     #$01
+	bvs     L0070
+	eor     #$80
+L0070:	bpl     L00E5
+	lda     _p2_x
+	cmp     #$FF
+	bcs     L00E5
+	lda     _p2_dx
+	clc
+	adc     _p2_x
+	sta     _p2_x
+;
+; if(p2_dx < 0 && p2_x > 0) p2_x += p2_dx;
+;
+L00E5:	lda     _p2_dx
+	asl     a
+	bcc     L00EB
+	lda     _p2_x
+	beq     L00EB
+	lda     _p2_dx
+	clc
+	adc     _p2_x
+	sta     _p2_x
+;
+; if((pad2 & PAD_A) && (p2_y == FLOOR_Y)){
+;
+L00EB:	lda     _pad2
+	and     #$80
+	beq     L00EF
+	lda     _p2_y
+	cmp     #$C0
+	bne     L00EF
+;
+; p2_dy = -8;
+;
+	lda     #$F8
+	sta     _p2_dy
+;
+; if (p2_y < FLOOR_Y) p2_dy += 1;
+;
+L00EF:	lda     _p2_y
+	cmp     #$C0
+	bcs     L00F0
+	inc     _p2_dy
+;
+; if (p2_dy > 4) p2_dy = 4; 
+;
+L00F0:	lda     _p2_dy
+	sec
+	sbc     #$05
+	bvs     L0083
+	eor     #$80
+L0083:	bpl     L00F1
+	lda     #$04
+	sta     _p2_dy
+;
+; p2_y += p2_dy;
+;
+L00F1:	lda     _p2_dy
+	clc
+	adc     _p2_y
+	sta     _p2_y
+;
+; if(p2_y >= FLOOR_Y){
+;
+	cmp     #$C0
+	bcc     L00F4
+;
+; p2_y = FLOOR_Y;
+;
+	lda     #$C0
+	sta     _p2_y
+;
+; p2_dy = 0;
+;
+	lda     #$00
+	sta     _p2_dy
+;
+; if( (pad2 & PAD_B) && (b2 == 0)){
+;
+L00F4:	lda     _pad2
+	and     #$40
+	beq     L00F9
+	lda     _b2
+	bne     L00F9
+;
+; b2_y = p2_y + 2;
+;
+	lda     _p2_y
+	clc
+	adc     #$02
+	sta     _b2_y
+;
+; b2 = 1;
+;
+	lda     #$01
+	sta     _b2
+;
+; if(p2_facing == 0){
+;
+	lda     _p2_facing
+	bne     L00F8
+;
+; b2_x = p2_x - 4;
+;
+	lda     _p2_x
+	sec
+	sbc     #$04
+	sta     _b2_x
+;
+; b2_vx = -4;
+;
+	lda     #$FC
+	sta     _b2_vx
+;
+; p2_dx = 8;
+;
+	lda     #$08
+;
+; } else {
+;
+	jmp     L00AD
+;
+; b2_x = p2_x + 4;
+;
+L00F8:	lda     _p2_x
+	clc
+	adc     #$04
+	sta     _b2_x
+;
+; b2_vx = 4;
+;
+	lda     #$04
+	sta     _b2_vx
+;
+; p2_dx = -8;
+;
+	lda     #$F8
+L00AD:	sta     _p2_dx
+;
+; if(b2 == 1){
+;
+L00F9:	lda     _b2
+	cmp     #$01
+	bne     L00FC
+;
+; oam_spr(b2_x, b2_y, 0x02, 0);
+;
+	jsr     decsp3
+	lda     _b2_x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _b2_y
+	dey
+	sta     (c_sp),y
+	lda     #$02
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; b2_x += b2_vx;
+;
+	lda     _b2_vx
+	clc
+	adc     _b2_x
+	sta     _b2_x
+;
+; if(b2_x > 250) b2 = 0;
+;
+	cmp     #$FB
+	bcc     L00FC
+	lda     #$00
+	sta     _b2
+;
+; if(b1 == 1){
+;
+L00FC:	lda     _b1
+	cmp     #$01
+	bne     L00FE
+;
+; if( (b1_x >= p2_x) && (b1_x <= p2_x + 15) && (b1_y >= p2_y) && (b1_y <= p2_y + 15) ){
+;
+	lda     _b1_x
+	cmp     _p2_x
+	bcc     L00FE
+	lda     _b1_x
+	jsr     pusha0
+	lda     _p2_x
+	clc
+	adc     #$0F
+	bcc     L0095
+	ldx     #$01
+L0095:	jsr     tosicmp
+	beq     L00AE
+	bpl     L00FE
+L00AE:	lda     _b1_y
+	cmp     _p2_y
+	bcc     L00FE
+	lda     _b1_y
+	jsr     pusha0
+	lda     _p2_y
+	clc
+	adc     #$0F
+	bcc     L0096
+	ldx     #$01
+L0096:	jsr     tosicmp
+	bmi     L0097
+	bne     L00FE
+;
+; p1_x = 40;
+;
+L0097:	lda     #$28
+	sta     _p1_x
+;
+; p2_x = 200;
+;
+	lda     #$C8
+	sta     _p2_x
+;
+; p1_y = 200;
+;
+	sta     _p1_y
+;
+; p2_y = 200;
+;
+	sta     _p2_y
+;
+; b1 = 0;
+;
+	lda     #$00
+	sta     _b1
+;
+; b2 = 0;
+;
+	sta     _b2
+;
+; if(b2 == 1){
+;
+L00FE:	lda     _b2
+	cmp     #$01
+	bne     L009A
+;
+; if( (b2_x >= p1_x) && (b2_x <= p1_x + 15) && (b2_y >= p1_y) && (b2_y <= p1_y + 15) ){
+;
+	lda     _b2_x
+	cmp     _p1_x
+	bcc     L009A
+	lda     _b2_x
+	jsr     pusha0
+	lda     _p1_x
+	clc
+	adc     #$0F
+	bcc     L009C
+	ldx     #$01
+L009C:	jsr     tosicmp
+	beq     L00AF
+	bpl     L009A
+L00AF:	lda     _b2_y
+	cmp     _p1_y
+	bcc     L009A
+	lda     _b2_y
+	jsr     pusha0
+	lda     _p1_y
+	clc
+	adc     #$0F
+	bcc     L009D
+	ldx     #$01
+L009D:	jsr     tosicmp
+	bmi     L009E
+	bne     L009A
+;
+; p1_x = 40;
+;
+L009E:	lda     #$28
+	sta     _p1_x
+;
+; p2_x = 200;
+;
+	lda     #$C8
+	sta     _p2_x
+;
+; p1_y = 200;
+;
+	sta     _p1_y
+;
+; p2_y = 200;
+;
+	sta     _p2_y
+;
+; b1 = 0;
+;
+	lda     #$00
+	sta     _b1
+;
+; b2 = 0;
+;
+	sta     _b2
+;
+; oam_spr(p1_x, p1_y, 0x41, 0);
+;
+L009A:	jsr     decsp3
+	lda     _p1_x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _p1_y
 	dey
 	sta     (c_sp),y
 	lda     #$41
@@ -241,15 +1101,15 @@ L0017:	jsr     _oam_clear
 	tya
 	jsr     _oam_spr
 ;
-; oam_spr(x + 8, y, 0x42, 0);
+; oam_spr(p1_x + 8, p1_y, 0x42, 0);
 ;
 	jsr     decsp3
-	lda     _x
+	lda     _p1_x
 	clc
 	adc     #$08
 	ldy     #$02
 	sta     (c_sp),y
-	lda     _y
+	lda     _p1_y
 	dey
 	sta     (c_sp),y
 	lda     #$42
@@ -258,13 +1118,13 @@ L0017:	jsr     _oam_clear
 	tya
 	jsr     _oam_spr
 ;
-; oam_spr(x, y + 8, 0x43, 0);
+; oam_spr(p1_x, p1_y + 8, 0x43, 0);
 ;
 	jsr     decsp3
-	lda     _x
+	lda     _p1_x
 	ldy     #$02
 	sta     (c_sp),y
-	lda     _y
+	lda     _p1_y
 	clc
 	adc     #$08
 	dey
@@ -275,15 +1135,83 @@ L0017:	jsr     _oam_clear
 	tya
 	jsr     _oam_spr
 ;
-; oam_spr(x + 8, y + 8, 0x44, 0);
+; oam_spr(p1_x + 8, p1_y + 8, 0x44, 0);
 ;
 	jsr     decsp3
-	lda     _x
+	lda     _p1_x
 	clc
 	adc     #$08
 	ldy     #$02
 	sta     (c_sp),y
-	lda     _y
+	lda     _p1_y
+	clc
+	adc     #$08
+	dey
+	sta     (c_sp),y
+	lda     #$44
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(p2_x, p2_y, 0x41, 0);
+;
+	jsr     decsp3
+	lda     _p2_x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _p2_y
+	dey
+	sta     (c_sp),y
+	lda     #$41
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(p2_x + 8, p2_y, 0x42, 0);
+;
+	jsr     decsp3
+	lda     _p2_x
+	clc
+	adc     #$08
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _p2_y
+	dey
+	sta     (c_sp),y
+	lda     #$42
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(p2_x, p2_y + 8, 0x43, 0);
+;
+	jsr     decsp3
+	lda     _p2_x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _p2_y
+	clc
+	adc     #$08
+	dey
+	sta     (c_sp),y
+	lda     #$43
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(p2_x + 8, p2_y + 8, 0x44, 0);
+;
+	jsr     decsp3
+	lda     _p2_x
+	clc
+	adc     #$08
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _p2_y
 	clc
 	adc     #$08
 	dey
@@ -296,7 +1224,7 @@ L0017:	jsr     _oam_clear
 ;
 ; while (1){
 ;
-	jmp     L0006
+	jmp     L0011
 
 .endproc
 
