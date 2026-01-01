@@ -16,10 +16,10 @@
 
 unsigned char i, j;
 
-unsigned char pad1, p1_facing, p1_x, p1_y, b1_x, b1_y, b1;
+unsigned char pad1, p1_facing, p1grounded, p1score, p1changed, p1_x, p1_y, b1_x, b1_y, b1;
 signed char p1_dy, p1_dx, b1_vx;
 
-unsigned char pad2, p2_facing, p2_x, p2_y, b2_x, b2_y, b2;
+unsigned char pad2, p2_facing, p2grounded, p2score, p2changed, p2_x, p2_y, b2_x, b2_y, b2;
 signed char p2_dy, p2_dx, b2_vx;
 
 struct Platform {
@@ -41,6 +41,15 @@ BLACK, 0x16, 0x28, WHITE,
 0,0,0,0
 }; 
 
+void draw_score(unsigned char x, unsigned char y, unsigned char score){
+	unsigned char tens = score / 10;
+	unsigned char ones = score % 10;
+
+	vram_adr(NTADR_A(x, y));
+
+	vram_put((0x30 + tens));
+	vram_put((0x30 + ones));
+}
 
 void main (void) {
 	// Setup Player Variables
@@ -54,6 +63,12 @@ void main (void) {
 	p1_dx = 0;
 	p2_dy = 0;
 	p2_dx = 0;
+
+	p1score = 0;
+	p2score = 0;
+
+	p1changed = 1;
+	p2changed = 1;
 	
 	ppu_off(); // screen off
 
@@ -77,11 +92,10 @@ void main (void) {
 	
 	ppu_on_all(); //	turn on screen
 	
-	
 	while (1){
 		ppu_wait_nmi();
 		oam_clear(); 
-
+		
 		pad1 = pad_poll(0);
 		pad2 = pad_poll(1);
 
@@ -105,28 +119,27 @@ void main (void) {
 			if(p1_dx < 0) ++p1_dx;
 		}
 
-		if(p1_dx > 0 && p1_x < 255) p1_x += p1_dx;
-		if(p1_dx < 0 && p1_x > 0) p1_x += p1_dx;
+		if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx;
+		if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx;
 
 		// Vertical Movment
 
-		if((pad1 & PAD_A) && ((p1_y == FLOOR_Y) || 
-		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[0].y - 22)) && (p1_x + 8 > platforms[0].x) && (p1_x < platforms[0].x + platforms[0].w) ) ||
-		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[1].y - 22)) && (p1_x + 8 > platforms[1].x) && (p1_x < platforms[1].x + platforms[1].w) ) ||
-		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[2].y - 22)) && (p1_x + 8 > platforms[2].x) && (p1_x < platforms[2].x + platforms[2].w) ) ) ){
+		if((pad1 & PAD_A) && p1grounded){
 			p1_dy = -8;
+			p1grounded = 0;
 		}
 
 		if (p1_dy < 4) p1_dy += 1;
 
 		p1_y += p1_dy;
-		
+		p1grounded = 0;
 
 		// Collision
 		if(p1_dy >= 0){
 			if(p1_y >= FLOOR_Y){
 				p1_y = FLOOR_Y;
 				p1_dy = 0;
+				p1grounded = 1;
 			}
 
 			for(i = 0; i < 3; i++){
@@ -136,13 +149,14 @@ void main (void) {
 					if (p1_x + 8 > platforms[i].x && p1_x < platforms[i].x + platforms[i].w){
 						p1_y = (platforms[i].y-22);
 						p1_dy = 0;
+						p1grounded = 1;
 					}
 				}
 			}
 		}
 
 		// Shooting
-		if( (pad1 & PAD_B) && (b1 == 0)){
+		if((pad1 & PAD_B) && (b1 == 0)){
 			b1_y = p1_y + 2;
 			b1 = 1;
 
@@ -186,21 +200,20 @@ void main (void) {
 			if(p2_dx < 0) ++p2_dx;
 		}
 
-		if(p2_dx > 0 && p2_x < 255) p2_x += p2_dx;
-		if(p2_dx < 0 && p2_x > 0) p2_x += p2_dx;
+		if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx;
+		if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx;
 
 		// Vertical Movment
 
-		if((pad2 & PAD_A) && ((p2_y == FLOOR_Y) || 
-		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[0].y - 22)) && (p2_x + 8 > platforms[0].x) && (p2_x < platforms[0].x + platforms[0].w) ) ||
-		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[1].y - 22)) && (p2_x + 8 > platforms[1].x) && (p2_x < platforms[1].x + platforms[1].w) ) ||
-		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[2].y - 22)) && (p2_x + 8 > platforms[2].x) && (p2_x < platforms[2].x + platforms[2].w) ) ) ){
+		if((pad2 & PAD_A) && p2grounded){
 			p2_dy = -8;
+			p2grounded = 0;
 		}
 
 		if (p2_dy < 4) p2_dy += 1;
 
 		p2_y += p2_dy;
+		p2grounded = 0;
 		
 
 		// Collision
@@ -208,6 +221,7 @@ void main (void) {
 			if(p2_y >= FLOOR_Y){
 				p2_y = FLOOR_Y;
 				p2_dy = 0;
+				p2grounded = 1;
 			}
 
 			for(i = 0; i < 3; i++){
@@ -217,13 +231,14 @@ void main (void) {
 					if (p2_x + 8 > platforms[i].x && p2_x < platforms[i].x + platforms[i].w){
 						p2_y = (platforms[i].y-22);
 						p2_dy = 0;
+						p2grounded = 1;
 					}
 				}
 			}
 		}
 
 		// Shooting
-		if( (pad2 & PAD_B) && (b2 == 0)){
+		if((pad2 & PAD_B) && (b2 == 0)){
 			b2_y = p2_y + 2;
 			b2 = 1;
 
@@ -259,6 +274,9 @@ void main (void) {
 
 				b1 = 0;
 				b2 = 0;
+
+				p1score++;
+				p1changed = 1;
 			}
 		}
 
@@ -272,6 +290,9 @@ void main (void) {
 
 				b1 = 0;
 				b2 = 0;
+
+				p2score++;
+				p2changed = 1;
 			}
 		}
 
