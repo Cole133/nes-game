@@ -12,11 +12,21 @@
 	.macpack	longbranch
 	.forceimport	__STARTUP__
 	.import		_pal_bg
+	.import		_pal_spr
+	.import		_ppu_wait_nmi
 	.import		_ppu_off
 	.import		_ppu_on_all
+	.import		_oam_clear
+	.import		_oam_spr
+	.import		_pad_poll
 	.import		_vram_adr
 	.import		_vram_put
 	.export		_i
+	.export		_pad1
+	.export		_x
+	.export		_y
+	.export		_jump
+	.export		_dy
 	.export		_text
 	.export		_palette
 	.export		_main
@@ -27,8 +37,8 @@ _text:
 	.byte	$73,$69,$78,$20,$73,$65,$76,$65,$6E,$00
 _palette:
 	.byte	$0F
-	.byte	$00
-	.byte	$10
+	.byte	$16
+	.byte	$28
 	.byte	$30
 	.byte	$00
 	.byte	$00
@@ -49,6 +59,16 @@ _palette:
 .segment	"ZEROPAGE"
 _i:
 	.res	1,$00
+_pad1:
+	.res	1,$00
+_x:
+	.res	1,$00
+_y:
+	.res	1,$00
+_jump:
+	.res	1,$00
+_dy:
+	.res	1,$00
 
 ; ---------------------------------------------------------------
 ; void __near__ main (void)
@@ -61,6 +81,15 @@ _i:
 .segment	"CODE"
 
 ;
+; x = 128;
+;
+	lda     #$80
+	sta     _x
+;
+; y = 128;
+;
+	sta     _y
+;
 ; ppu_off(); // screen off
 ;
 	jsr     _ppu_off
@@ -71,44 +100,203 @@ _i:
 	ldx     #>(_palette)
 	jsr     _pal_bg
 ;
-; vram_adr(NTADR_A(2,2)); // screen is 32 x 30 tiles
+; pal_spr(palette); // load the sprite palette
 ;
-	ldx     #$20
+	lda     #<(_palette)
+	ldx     #>(_palette)
+	jsr     _pal_spr
+;
+; vram_adr(NTADR_A(2,26)); // screen is 32 x 30 tiles
+;
+	ldx     #$23
 	lda     #$42
 	jsr     _vram_adr
 ;
-; i = 0;
+; for (i=0; i<28; ++i){
 ;
 	lda     #$00
 	sta     _i
+L001C:	lda     _i
+	cmp     #$1C
+	bcs     L0003
 ;
-; while(text[i]){
+; vram_put(0x01);
 ;
-	jmp     L0004
-;
-; vram_put(text[i]); // this pushes 1 char to the screen
-;
-L0002:	ldy     _i
-	lda     _text,y
+	lda     #$01
 	jsr     _vram_put
 ;
-; ++i;
+; for (i=0; i<28; ++i){
 ;
 	inc     _i
-;
-; while(text[i]){
-;
-L0004:	ldy     _i
-	lda     _text,y
-	bne     L0002
+	jmp     L001C
 ;
 ; ppu_on_all(); // turn on screen
 ;
-	jsr     _ppu_on_all
+L0003:	jsr     _ppu_on_all
+;
+; ppu_wait_nmi();
+;
+L0006:	jsr     _ppu_wait_nmi
+;
+; pad1 = pad_poll(0);
+;
+	lda     #$00
+	jsr     _pad_poll
+	sta     _pad1
+;
+; if(pad1 & PAD_LEFT){
+;
+	and     #$02
+	beq     L001D
+;
+; if(x>0) --x;
+;
+	lda     _x
+	beq     L001D
+	dec     _x
+;
+; if(pad1 & PAD_RIGHT){
+;
+L001D:	lda     _pad1
+	and     #$01
+	beq     L001E
+;
+; if(x<255) ++x;
+;
+	lda     _x
+	cmp     #$FF
+	bcs     L001E
+	inc     _x
+;
+; if((pad1 & PAD_A) && (y == FLOOR_Y)){
+;
+L001E:	lda     _pad1
+	and     #$80
+	beq     L0022
+	lda     _y
+	cmp     #$C0
+	bne     L0022
+;
+; dy = -8;
+;
+	lda     #$F8
+	sta     _dy
+;
+; if (y < FLOOR_Y) { dy += 1; }
+;
+L0022:	lda     _y
+	cmp     #$C0
+	bcs     L0023
+	inc     _dy
+;
+; if (dy > 4) { dy = 4; }
+;
+L0023:	lda     _dy
+	sec
+	sbc     #$05
+	bvs     L0015
+	eor     #$80
+L0015:	bpl     L0024
+	lda     #$04
+	sta     _dy
+;
+; y += dy;
+;
+L0024:	lda     _dy
+	clc
+	adc     _y
+	sta     _y
+;
+; if(y >= FLOOR_Y){
+;
+	cmp     #$C0
+	bcc     L0017
+;
+; y = FLOOR_Y;
+;
+	lda     #$C0
+	sta     _y
+;
+; dy = 0;
+;
+	lda     #$00
+	sta     _dy
+;
+; oam_clear(); 
+;
+L0017:	jsr     _oam_clear
+;
+; oam_spr(x, y, 0x41, 0);
+;
+	jsr     decsp3
+	lda     _x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _y
+	dey
+	sta     (c_sp),y
+	lda     #$41
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(x + 8, y, 0x42, 0);
+;
+	jsr     decsp3
+	lda     _x
+	clc
+	adc     #$08
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _y
+	dey
+	sta     (c_sp),y
+	lda     #$42
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(x, y + 8, 0x43, 0);
+;
+	jsr     decsp3
+	lda     _x
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _y
+	clc
+	adc     #$08
+	dey
+	sta     (c_sp),y
+	lda     #$43
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
+; oam_spr(x + 8, y + 8, 0x44, 0);
+;
+	jsr     decsp3
+	lda     _x
+	clc
+	adc     #$08
+	ldy     #$02
+	sta     (c_sp),y
+	lda     _y
+	clc
+	adc     #$08
+	dey
+	sta     (c_sp),y
+	lda     #$44
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
 ;
 ; while (1){
 ;
-L000A:	jmp     L000A
+	jmp     L0006
 
 .endproc
 
