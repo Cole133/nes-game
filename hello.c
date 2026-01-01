@@ -110,7 +110,10 @@ void main (void) {
 
 		// Vertical Movment
 
-		if((pad1 & PAD_A) && (p1_y == FLOOR_Y)){
+		if((pad1 & PAD_A) && ((p1_y == FLOOR_Y) || 
+		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[0].y - 22)) && (p1_x + 8 > platforms[0].x) && (p1_x < platforms[0].x + platforms[0].w) ) ||
+		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[1].y - 22)) && (p1_x + 8 > platforms[1].x) && (p1_x < platforms[1].x + platforms[1].w) ) ||
+		   ( (p1_y < FLOOR_Y) && (p1_y >= (platforms[2].y - 22)) && (p1_x + 8 > platforms[2].x) && (p1_x < platforms[2].x + platforms[2].w) ) ) ){
 			p1_dy = -8;
 		}
 
@@ -128,10 +131,10 @@ void main (void) {
 
 			for(i = 0; i < 3; i++){
 
-				if (p1_y >= platforms[i].y && p1_y < platforms[i].y + 8){
+				if (p1_y >= (platforms[i].y-22) && p1_y < (platforms[i].y-22) + 8){
 
 					if (p1_x + 8 > platforms[i].x && p1_x < platforms[i].x + platforms[i].w){
-						p1_y = platforms[i].y + 16;
+						p1_y = (platforms[i].y-22);
 						p1_dy = 0;
 					}
 				}
@@ -188,20 +191,35 @@ void main (void) {
 
 		// Vertical Movment
 
-		if((pad2 & PAD_A) && (p2_y == FLOOR_Y)){
+		if((pad2 & PAD_A) && ((p2_y == FLOOR_Y) || 
+		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[0].y - 22)) && (p2_x + 8 > platforms[0].x) && (p2_x < platforms[0].x + platforms[0].w) ) ||
+		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[1].y - 22)) && (p2_x + 8 > platforms[1].x) && (p2_x < platforms[1].x + platforms[1].w) ) ||
+		   ( (p2_y < FLOOR_Y) && (p2_y >= (platforms[2].y - 22)) && (p2_x + 8 > platforms[2].x) && (p2_x < platforms[2].x + platforms[2].w) ) ) ){
 			p2_dy = -8;
 		}
 
-		if (p2_y < FLOOR_Y) p2_dy += 1;
-		if (p2_dy > 4) p2_dy = 4; 
+		if (p2_dy < 4) p2_dy += 1;
 
 		p2_y += p2_dy;
 		
 
-		// Collision with floor
-		if(p2_y >= FLOOR_Y){
-			p2_y = FLOOR_Y;
-			p2_dy = 0;
+		// Collision
+		if(p2_dy >= 0){
+			if(p2_y >= FLOOR_Y){
+				p2_y = FLOOR_Y;
+				p2_dy = 0;
+			}
+
+			for(i = 0; i < 3; i++){
+
+				if (p2_y >= (platforms[i].y-22) && p2_y < (platforms[i].y-22) + 8){
+
+					if (p2_x + 8 > platforms[i].x && p2_x < platforms[i].x + platforms[i].w){
+						p2_y = (platforms[i].y-22);
+						p2_dy = 0;
+					}
+				}
+			}
 		}
 
 		// Shooting
@@ -271,5 +289,3 @@ void main (void) {
 
 	}
 }
-	
-	
