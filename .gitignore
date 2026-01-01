@@ -1,0 +1,5 @@
+# Ignore compiled binaries and object files
+*.nes
+*.o
+*.map
+*.dbg
