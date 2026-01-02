@@ -172,14 +172,14 @@ void main (void) {
 			oam_clear(); 
 
 			if (p1changed) {
-				vram_adr(NTADR_A(2, 0));      
+				vram_adr(NTADR_A(2, 1));      
 				vram_put(0x30 + p1_tens);     
 				vram_put(0x30 + p1_ones);     
 				p1changed = 0;
 			}
 
 			if (p2changed) {
-				vram_adr(NTADR_A(26, 0));
+				vram_adr(NTADR_A(26, 1));
 				vram_put(0x30 + p2_tens);
 				vram_put(0x30 + p2_ones);
 				p2changed = 0; 
@@ -399,6 +399,32 @@ void main (void) {
 			oam_spr(p2_x + 8, p2_y, 0x42, 0);
 			oam_spr(p2_x, p2_y + 8, 0x43, 0);
 			oam_spr(p2_x + 8, p2_y + 8, 0x44, 0);
+
+			if(pad1 & PAD_SELECT){
+				
+				ppu_off();
+
+				// Clear Screen
+				vram_adr(NTADR_A(0,0)); 
+				for(i = 0; i < 254; i++) {
+					 vram_put(0x00); 
+				}
+				for(i = 0; i < 250; i++) {
+					 vram_put(0x00); 
+				}
+				for(i = 0; i < 250; i++) {
+					 vram_put(0x00); 
+				}
+				for(i = 0; i < 130; i++) {
+					 vram_put(0x00); 
+				}
+
+				drawl_title_screen();
+				
+				ppu_on_all();
+
+				game_state = 0;
+			}
 		}
 	}
 }
