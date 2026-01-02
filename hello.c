@@ -1,5 +1,6 @@
 #include "LIB/neslib.h"
-#include "LIB/nesdoug.h" 
+#include "LIB/nesdoug.h"
+#include <stdlib.h>
 
 #define BLACK 0x0f
 #define DK_GY 0x00
@@ -15,14 +16,17 @@
 
 unsigned char i, j;
 
-unsigned char pad1, p1_facing, p1grounded, p1score, p1changed, p1_x, p1_y, b1_x, b1_y, b1;
+unsigned char pad1, p1_facing, p1grounded, p1score, p1changed, p1_x, p1_y, b1_x, b1_y, b1_multi, b1;
 signed char p1_dy, p1_dx, b1_vx;
 
-unsigned char pad2, p2_facing, p2grounded, p2score, p2changed, p2_x, p2_y, b2_x, b2_y, b2;
+unsigned char pad2, p2_facing, p2grounded, p2score, p2changed, p2_x, p2_y, b2_x, b2_y, b2_multi, b2;
 signed char p2_dy, p2_dx, b2_vx;
 
 unsigned char map_id;
 unsigned char game_state;
+unsigned char powerup_active;
+unsigned char random;
+unsigned char new_random;
 
 struct Platform {
 	unsigned char x;
@@ -84,9 +88,16 @@ void main (void) {
 
 	p1changed = 1;
 	p2changed = 1;
+
+	b1_multi = 1;
+	b2_multi = 1;
 	
 	game_state = 0;
 	map_id = 0;
+	powerup_active = 0;
+
+	new_random = 0;
+	random = (rand() % (150 - 50 + 1)) + 50;
 
 	ppu_off(); 
 
@@ -269,9 +280,9 @@ void main (void) {
 				else
 					oam_spr(b1_x, b1_y, 0x03, 0);
 
-				b1_x += b1_vx;
+				b1_x += b1_vx * b1_multi;
 				
-				if(b1_x > 250) b1 = 0;
+				if(b1_x > 245) b1 = 0;
 			}
 
 			// -------------------------
@@ -355,9 +366,9 @@ void main (void) {
 				else
 					oam_spr(b2_x, b2_y, 0x03, 0);
 
-				b2_x += b2_vx;
+				b2_x += b2_vx * b2_multi;
 
-				if(b2_x > 250) b2 = 0;
+				if(b2_x > 245) b2 = 0;
 			}
 			
 			// Hit Detection
@@ -375,6 +386,12 @@ void main (void) {
 
 					p1score++;
 					p1changed = 1;
+
+					b1_multi = 1;
+					b2_multi = 1;
+					powerup_active = 0;
+
+					random = (rand() % (150 - 50 + 1)) + 50;
 				}
 			}
 
@@ -391,7 +408,25 @@ void main (void) {
 
 					p2score++;
 					p2changed = 1;
+
+					b1_multi = 1;
+					b2_multi = 1;
+					powerup_active = 0;
+
+					random = (rand() % (150 - 50 + 1)) + 50;
 				}
+			}
+
+			// Power Up
+
+			if(p1_x >= random - 10 && p1_x <= random + 10 && p1_y >= 118 && p1_y <= 130){
+				b1_multi = 2;
+				powerup_active = 1;
+			}
+
+			if(p2_x >= random - 10 && p2_x <= random + 10 && p2_y >= 118 && p2_y <= 130){
+				b2_multi = 2;
+				powerup_active = 1;
 			}
 
 			// Sprite Drawing
@@ -405,6 +440,10 @@ void main (void) {
 			oam_spr(p2_x + 8, p2_y, 0x42, 0);
 			oam_spr(p2_x, p2_y + 8, 0x43, 0);
 			oam_spr(p2_x + 8, p2_y + 8, 0x44, 0);
+
+			if(powerup_active == 0){
+				oam_spr(random, 120, 0x04, 0);
+			}
 
 			if(pad1 & PAD_SELECT){
 				

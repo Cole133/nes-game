@@ -22,6 +22,7 @@
 	.import		_scroll
 	.import		_vram_adr
 	.import		_vram_put
+	.import		_rand
 	.export		_i
 	.export		_j
 	.export		_pad1
@@ -33,6 +34,7 @@
 	.export		_p1_y
 	.export		_b1_x
 	.export		_b1_y
+	.export		_b1_multi
 	.export		_b1
 	.export		_p1_dy
 	.export		_p1_dx
@@ -46,12 +48,16 @@
 	.export		_p2_y
 	.export		_b2_x
 	.export		_b2_y
+	.export		_b2_multi
 	.export		_b2
 	.export		_p2_dy
 	.export		_p2_dx
 	.export		_b2_vx
 	.export		_map_id
 	.export		_game_state
+	.export		_powerup_active
+	.export		_random
+	.export		_new_random
 	.export		_maps
 	.export		_palette
 	.export		_drawl_title_screen
@@ -131,6 +137,8 @@ _b1_x:
 	.res	1,$00
 _b1_y:
 	.res	1,$00
+_b1_multi:
+	.res	1,$00
 _b1:
 	.res	1,$00
 _p1_dy:
@@ -157,6 +165,8 @@ _b2_x:
 	.res	1,$00
 _b2_y:
 	.res	1,$00
+_b2_multi:
+	.res	1,$00
 _b2:
 	.res	1,$00
 _p2_dy:
@@ -168,6 +178,12 @@ _b2_vx:
 _map_id:
 	.res	1,$00
 _game_state:
+	.res	1,$00
+_powerup_active:
+	.res	1,$00
+_random:
+	.res	1,$00
+_new_random:
 	.res	1,$00
 
 ; ---------------------------------------------------------------
@@ -279,6 +295,14 @@ _game_state:
 ;
 	sta     _p2changed
 ;
+; b1_multi = 1;
+;
+	sta     _b1_multi
+;
+; b2_multi = 1;
+;
+	sta     _b2_multi
+;
 ; game_state = 0;
 ;
 	lda     #$00
@@ -287,6 +311,25 @@ _game_state:
 ; map_id = 0;
 ;
 	sta     _map_id
+;
+; powerup_active = 0;
+;
+	sta     _powerup_active
+;
+; new_random = 0;
+;
+	sta     _new_random
+;
+; random = (rand() % (150 - 50 + 1)) + 50;
+;
+	jsr     _rand
+	jsr     pushax
+	ldx     #$00
+	lda     #$65
+	jsr     tosmoda0
+	clc
+	adc     #$32
+	sta     _random
 ;
 ; ppu_off(); 
 ;
@@ -316,12 +359,12 @@ _game_state:
 ;
 ; ppu_on_all(); 
 ;
-L0150:	jsr     _ppu_on_all
+L0167:	jsr     _ppu_on_all
 ;
 ; if (game_state == 0) {
 ;
-L00F0:	lda     _game_state
-	jne     L00FD
+L0102:	lda     _game_state
+	jne     L010F
 ;
 ; ppu_wait_nmi();
 ;
@@ -336,29 +379,29 @@ L00F0:	lda     _game_state
 ; if (pad1 & PAD_LEFT)  map_id = 0;
 ;
 	and     #$02
-	beq     L00F1
+	beq     L0103
 	lda     #$00
 	sta     _map_id
 ;
 ; if (pad1 & PAD_UP)    map_id = 1; 
 ;
-L00F1:	lda     _pad1
+L0103:	lda     _pad1
 	and     #$08
-	beq     L00F2
+	beq     L0104
 	lda     #$01
 	sta     _map_id
 ;
 ; if (pad1 & PAD_RIGHT) map_id = 2;
 ;
-L00F2:	lda     _pad1
+L0104:	lda     _pad1
 	and     #$01
-	beq     L0008
+	beq     L0009
 	lda     #$02
 	sta     _map_id
 ;
 ; oam_clear();
 ;
-L0008:	jsr     _oam_clear
+L0009:	jsr     _oam_clear
 ;
 ; oam_spr(80 + (map_id * 48), 100, 0x41, 0); 
 ;
@@ -384,14 +427,14 @@ L0008:	jsr     _oam_clear
 ;
 	lda     _pad1
 	and     #$10
-	bne     L00F3
+	bne     L0105
 	lda     _pad1
 	and     #$80
-	beq     L00F0
+	beq     L0102
 ;
 ; ppu_off();
 ;
-L00F3:	jsr     _ppu_off
+L0105:	jsr     _ppu_off
 ;
 ; vram_adr(NTADR_A(0,0)); 
 ;
@@ -403,9 +446,9 @@ L00F3:	jsr     _ppu_off
 ;
 	lda     #$00
 	sta     _i
-L00F4:	lda     _i
+L0106:	lda     _i
 	cmp     #$FE
-	bcs     L00F5
+	bcs     L0107
 ;
 ; vram_put(0x00); 
 ;
@@ -415,15 +458,15 @@ L00F4:	lda     _i
 ; for(i = 0; i < 254; i++) {
 ;
 	inc     _i
-	jmp     L00F4
+	jmp     L0106
 ;
 ; for(i = 0; i < 240; i++) {
 ;
-L00F5:	lda     #$00
+L0107:	lda     #$00
 	sta     _i
-L00F6:	lda     _i
+L0108:	lda     _i
 	cmp     #$F0
-	bcs     L0012
+	bcs     L0013
 ;
 ; vram_put(0x00); 
 ;
@@ -433,11 +476,11 @@ L00F6:	lda     _i
 ; for(i = 0; i < 240; i++) {
 ;
 	inc     _i
-	jmp     L00F6
+	jmp     L0108
 ;
 ; vram_adr(NTADR_A(0,26));
 ;
-L0012:	ldx     #$23
+L0013:	ldx     #$23
 	lda     #$40
 	jsr     _vram_adr
 ;
@@ -445,21 +488,21 @@ L0012:	ldx     #$23
 ;
 	lda     #$00
 	sta     _i
-L00F7:	lda     _i
+L0109:	lda     _i
 	cmp     #$20
-	bcs     L00F8
+	bcs     L010A
 	lda     #$01
 	jsr     _vram_put
 	inc     _i
-	jmp     L00F7
+	jmp     L0109
 ;
 ; for (i = 0; i < 3; i++){
 ;
-L00F8:	lda     #$00
+L010A:	lda     #$00
 	sta     _i
-L00F9:	lda     _i
+L010B:	lda     _i
 	cmp     #$03
-	jcs     L00FC
+	jcs     L010E
 ;
 ; vram_adr(NTADR_A((maps[map_id][i].x) / 8 , maps[map_id][i].y / 8));
 ;
@@ -530,7 +573,7 @@ L00F9:	lda     _i
 	lda     #$00
 	sta     _j
 	tax
-L00FA:	lda     _map_id
+L010C:	lda     _map_id
 	jsr     mulax9
 	clc
 	adc     #<(_maps)
@@ -553,8 +596,8 @@ L00FA:	lda     _map_id
 	lsr     a
 	lsr     a
 	cmp     _j
-	bcc     L00FB
-	beq     L00FB
+	bcc     L010D
+	beq     L010D
 ;
 ; vram_put(0x01);
 ;
@@ -565,16 +608,16 @@ L00FA:	lda     _map_id
 ;
 	ldx     #$00
 	inc     _j
-	jmp     L00FA
+	jmp     L010C
 ;
 ; for (i = 0; i < 3; i++){
 ;
-L00FB:	inc     _i
-	jmp     L00F9
+L010D:	inc     _i
+	jmp     L010B
 ;
 ; p1_x = 40; p1_y = 180;
 ;
-L00FC:	lda     #$28
+L010E:	lda     #$28
 	sta     _p1_x
 	lda     #$B4
 	sta     _p1_y
@@ -593,10 +636,10 @@ L00FC:	lda     #$28
 ;
 ; else if (game_state == 1) {
 ;
-	jmp     L0150
-L00FD:	lda     _game_state
+	jmp     L0167
+L010F:	lda     _game_state
 	cmp     #$01
-	jne     L00F0
+	jne     L0102
 ;
 ; const struct Platform* platforms = maps[map_id];
 ;
@@ -655,7 +698,7 @@ L00FD:	lda     _game_state
 ; if (p1changed) {
 ;
 	lda     _p1changed
-	beq     L0023
+	beq     L0024
 ;
 ; vram_adr(NTADR_A(2, 1));      
 ;
@@ -686,8 +729,8 @@ L00FD:	lda     _game_state
 ;
 ; if (p2changed) {
 ;
-L0023:	lda     _p2changed
-	beq     L0026
+L0024:	lda     _p2changed
+	beq     L0027
 ;
 ; vram_adr(NTADR_A(26, 1));
 ;
@@ -718,7 +761,7 @@ L0023:	lda     _p2changed
 ;
 ; scroll(0, 0);
 ;
-L0026:	jsr     push0
+L0027:	jsr     push0
 	jsr     _scroll
 ;
 ; pad1 = pad_poll(0);
@@ -737,7 +780,7 @@ L0026:	jsr     push0
 ;
 	lda     _pad1
 	and     #$02
-	beq     L00FE
+	beq     L0110
 ;
 ; p1_facing = 0;
 ;
@@ -749,18 +792,18 @@ L0026:	jsr     push0
 	lda     _p1_dx
 	sec
 	sbc     #$FE
-	bvs     L002C
+	bvs     L002D
 	eor     #$80
-L002C:	bpl     L0101
+L002D:	bpl     L0113
 	dec     _p1_dx
-	bpl     L0101
+	bpl     L0113
 ;
 ; else if(pad1 & PAD_RIGHT){
 ;
-	jmp     L0101
-L00FE:	lda     _pad1
+	jmp     L0113
+L0110:	lda     _pad1
 	and     #$01
-	beq     L00FF
+	beq     L0111
 ;
 ; p1_facing = 1;
 ;
@@ -772,44 +815,44 @@ L00FE:	lda     _pad1
 	lda     _p1_dx
 	sec
 	sbc     #$03
-	bvc     L0032
+	bvc     L0033
 	eor     #$80
-L0032:	bpl     L0101
+L0033:	bpl     L0113
 	inc     _p1_dx
-	bpl     L0101
+	bpl     L0113
 ;
 ; else{
 ;
-	jmp     L0101
+	jmp     L0113
 ;
 ; if(p1_dx > 0) --p1_dx;
 ;
-L00FF:	lda     _p1_dx
+L0111:	lda     _p1_dx
 	sec
 	sbc     #$01
-	bvs     L0037
+	bvs     L0038
 	eor     #$80
-L0037:	bpl     L0100
+L0038:	bpl     L0112
 	dec     _p1_dx
 ;
 ; if(p1_dx < 0) ++p1_dx;
 ;
-L0100:	lda     _p1_dx
+L0112:	lda     _p1_dx
 	asl     a
-	bcc     L0101
+	bcc     L0113
 	inc     _p1_dx
 ;
 ; if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx;
 ;
-L0101:	lda     _p1_dx
+L0113:	lda     _p1_dx
 	sec
 	sbc     #$01
-	bvs     L003E
+	bvs     L003F
 	eor     #$80
-L003E:	bpl     L0107
+L003F:	bpl     L0119
 	lda     _p1_x
 	cmp     #$F5
-	bcs     L0107
+	bcs     L0119
 	lda     _p1_dx
 	clc
 	adc     _p1_x
@@ -817,12 +860,12 @@ L003E:	bpl     L0107
 ;
 ; if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx;
 ;
-L0107:	lda     _p1_dx
+L0119:	lda     _p1_dx
 	asl     a
-	bcc     L010D
+	bcc     L011F
 	lda     _p1_x
 	cmp     #$0B
-	bcc     L010D
+	bcc     L011F
 	lda     _p1_dx
 	clc
 	adc     _p1_x
@@ -830,11 +873,11 @@ L0107:	lda     _p1_dx
 ;
 ; if((pad1 & PAD_A) && p1grounded){
 ;
-L010D:	lda     _pad1
+L011F:	lda     _pad1
 	and     #$80
-	beq     L0111
+	beq     L0123
 	lda     _p1grounded
-	beq     L0111
+	beq     L0123
 ;
 ; p1_dy = -8;
 ;
@@ -848,17 +891,17 @@ L010D:	lda     _pad1
 ;
 ; if (p1_dy < 4) p1_dy += 1;
 ;
-L0111:	lda     _p1_dy
+L0123:	lda     _p1_dy
 	sec
 	sbc     #$04
-	bvc     L004F
+	bvc     L0050
 	eor     #$80
-L004F:	bpl     L0112
+L0050:	bpl     L0124
 	inc     _p1_dy
 ;
 ; p1_y += p1_dy;
 ;
-L0112:	lda     _p1_dy
+L0124:	lda     _p1_dy
 	clc
 	adc     _p1_y
 	sta     _p1_y
@@ -871,14 +914,14 @@ L0112:	lda     _p1_dy
 ; if(p1_dy >= 0){
 ;
 	ldx     _p1_dy
-	jmi     L0119
+	jmi     L012B
 ;
 ; if(p1_y >= FLOOR_Y){
 ;
 	lda     _p1_y
 	cmp     #$C0
 	lda     #$00
-	bcc     L0116
+	bcc     L0128
 ;
 ; p1_y = FLOOR_Y;
 ;
@@ -898,10 +941,10 @@ L0112:	lda     _p1_dy
 ; for(i = 0; i < 3; i++){
 ;
 	lda     #$00
-L0116:	sta     _i
-L0117:	lda     _i
+L0128:	sta     _i
+L0129:	lda     _i
 	cmp     #$03
-	jcs     L0119
+	jcs     L012B
 ;
 ; if (p1_y >= (platforms[i].y-22) && p1_y < (platforms[i].y-22) + 8){
 ;
@@ -922,10 +965,10 @@ L0117:	lda     _i
 	lda     (ptr1),y
 	sec
 	sbc     #$16
-	bcs     L005A
+	bcs     L005B
 	dex
-L005A:	jsr     tosicmp
-	jmi     L0118
+L005B:	jsr     tosicmp
+	jmi     L012A
 	lda     _p1_y
 	jsr     pusha0
 	lda     _i
@@ -943,14 +986,14 @@ L005A:	jsr     tosicmp
 	lda     (ptr1),y
 	sec
 	sbc     #$16
-	bcs     L005C
+	bcs     L005D
 	dex
-L005C:	clc
+L005D:	clc
 	adc     #$08
-	bcc     L005D
+	bcc     L005E
 	inx
-L005D:	jsr     tosicmp
-	jpl     L0118
+L005E:	jsr     tosicmp
+	jpl     L012A
 ;
 ; if (p1_x + 8 > platforms[i].x && p1_x < platforms[i].x + platforms[i].w){
 ;
@@ -958,9 +1001,9 @@ L005D:	jsr     tosicmp
 	lda     _p1_x
 	clc
 	adc     #$08
-	bcc     L0061
+	bcc     L0062
 	inx
-L0061:	jsr     pushax
+L0062:	jsr     pushax
 	ldx     #$00
 	lda     _i
 	jsr     mulax3
@@ -975,8 +1018,8 @@ L0061:	jsr     pushax
 	ldx     #$00
 	lda     (ptr1,x)
 	jsr     tosicmp0
-	bmi     L0118
-	beq     L0118
+	bmi     L012A
+	beq     L012A
 	lda     _p1_x
 	jsr     pusha0
 	lda     _i
@@ -1008,10 +1051,10 @@ L0061:	jsr     pushax
 	lda     (ptr1),y
 	clc
 	adc     sreg
-	bcc     L00E6
+	bcc     L00F6
 	inx
-L00E6:	jsr     tosicmp
-	bpl     L0118
+L00F6:	jsr     tosicmp
+	bpl     L012A
 ;
 ; p1_y = (platforms[i].y-22);
 ;
@@ -1043,16 +1086,16 @@ L00E6:	jsr     tosicmp
 ;
 ; for(i = 0; i < 3; i++){
 ;
-L0118:	inc     _i
-	jmp     L0117
+L012A:	inc     _i
+	jmp     L0129
 ;
 ; if((pad1 & PAD_B) && (b1 == 0)){
 ;
-L0119:	lda     _pad1
+L012B:	lda     _pad1
 	and     #$40
-	beq     L011E
+	beq     L0130
 	lda     _b1
-	bne     L011E
+	bne     L0130
 ;
 ; b1_y = p1_y + 2;
 ;
@@ -1069,7 +1112,7 @@ L0119:	lda     _pad1
 ; if(p1_facing == 0){
 ;
 	lda     _p1_facing
-	bne     L011D
+	bne     L012F
 ;
 ; b1_x = p1_x - 4;
 ;
@@ -1089,11 +1132,11 @@ L0119:	lda     _pad1
 ;
 ; } else {
 ;
-	jmp     L00E9
+	jmp     L00F9
 ;
 ; b1_x = p1_x + 4;
 ;
-L011D:	lda     _p1_x
+L012F:	lda     _p1_x
 	clc
 	adc     #$04
 	sta     _b1_x
@@ -1106,18 +1149,18 @@ L011D:	lda     _p1_x
 ; p1_dx = -8;
 ;
 	lda     #$F8
-L00E9:	sta     _p1_dx
+L00F9:	sta     _p1_dx
 ;
 ; if(b1 == 1){
 ;
-L011E:	lda     _b1
+L0130:	lda     _b1
 	cmp     #$01
-	bne     L0121
+	bne     L0131
 ;
 ; if(p1_facing == 0)
 ;
 	lda     _p1_facing
-	bne     L0070
+	bne     L0071
 ;
 ; oam_spr(b1_x, b1_y, 0x02, 0);
 ;
@@ -1132,11 +1175,11 @@ L011E:	lda     _b1
 ;
 ; else
 ;
-	jmp     L0155
+	jmp     L016E
 ;
 ; oam_spr(b1_x, b1_y, 0x03, 0);
 ;
-L0070:	jsr     decsp3
+L0071:	jsr     decsp3
 	lda     _b1_x
 	ldy     #$02
 	sta     (c_sp),y
@@ -1144,30 +1187,36 @@ L0070:	jsr     decsp3
 	dey
 	sta     (c_sp),y
 	lda     #$03
-L0155:	dey
+L016E:	dey
 	sta     (c_sp),y
 	tya
 	jsr     _oam_spr
 ;
-; b1_x += b1_vx;
+; b1_x += b1_vx * b1_multi;
 ;
+	ldx     #$00
 	lda     _b1_vx
+	bpl     L0073
+	dex
+L0073:	jsr     pushax
+	lda     _b1_multi
+	jsr     tosmula0
 	clc
 	adc     _b1_x
 	sta     _b1_x
 ;
-; if(b1_x > 250) b1 = 0;
+; if(b1_x > 245) b1 = 0;
 ;
-	cmp     #$FB
-	bcc     L0121
+	cmp     #$F6
+	bcc     L0131
 	lda     #$00
 	sta     _b1
 ;
 ; if(pad2 & PAD_LEFT){
 ;
-L0121:	lda     _pad2
+L0131:	lda     _pad2
 	and     #$02
-	beq     L0122
+	beq     L0132
 ;
 ; p2_facing = 0;
 ;
@@ -1179,18 +1228,18 @@ L0121:	lda     _pad2
 	lda     _p2_dx
 	sec
 	sbc     #$FE
-	bvs     L0077
+	bvs     L0078
 	eor     #$80
-L0077:	bpl     L0125
+L0078:	bpl     L0135
 	dec     _p2_dx
-	bpl     L0125
+	bpl     L0135
 ;
 ; else if(pad2 & PAD_RIGHT){
 ;
-	jmp     L0125
-L0122:	lda     _pad2
+	jmp     L0135
+L0132:	lda     _pad2
 	and     #$01
-	beq     L0123
+	beq     L0133
 ;
 ; p2_facing = 1;
 ;
@@ -1202,44 +1251,44 @@ L0122:	lda     _pad2
 	lda     _p2_dx
 	sec
 	sbc     #$03
-	bvc     L007D
+	bvc     L007E
 	eor     #$80
-L007D:	bpl     L0125
+L007E:	bpl     L0135
 	inc     _p2_dx
-	bpl     L0125
+	bpl     L0135
 ;
 ; else{
 ;
-	jmp     L0125
+	jmp     L0135
 ;
 ; if(p2_dx > 0) --p2_dx;
 ;
-L0123:	lda     _p2_dx
+L0133:	lda     _p2_dx
 	sec
 	sbc     #$01
-	bvs     L0082
+	bvs     L0083
 	eor     #$80
-L0082:	bpl     L0124
+L0083:	bpl     L0134
 	dec     _p2_dx
 ;
 ; if(p2_dx < 0) ++p2_dx;
 ;
-L0124:	lda     _p2_dx
+L0134:	lda     _p2_dx
 	asl     a
-	bcc     L0125
+	bcc     L0135
 	inc     _p2_dx
 ;
 ; if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx;
 ;
-L0125:	lda     _p2_dx
+L0135:	lda     _p2_dx
 	sec
 	sbc     #$01
-	bvs     L0089
+	bvs     L008A
 	eor     #$80
-L0089:	bpl     L012B
+L008A:	bpl     L013B
 	lda     _p2_x
 	cmp     #$F5
-	bcs     L012B
+	bcs     L013B
 	lda     _p2_dx
 	clc
 	adc     _p2_x
@@ -1247,12 +1296,12 @@ L0089:	bpl     L012B
 ;
 ; if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx;
 ;
-L012B:	lda     _p2_dx
+L013B:	lda     _p2_dx
 	asl     a
-	bcc     L0131
+	bcc     L0141
 	lda     _p2_x
 	cmp     #$0B
-	bcc     L0131
+	bcc     L0141
 	lda     _p2_dx
 	clc
 	adc     _p2_x
@@ -1260,11 +1309,11 @@ L012B:	lda     _p2_dx
 ;
 ; if((pad2 & PAD_A) && p2grounded){
 ;
-L0131:	lda     _pad2
+L0141:	lda     _pad2
 	and     #$80
-	beq     L0135
+	beq     L0145
 	lda     _p2grounded
-	beq     L0135
+	beq     L0145
 ;
 ; p2_dy = -8;
 ;
@@ -1278,17 +1327,17 @@ L0131:	lda     _pad2
 ;
 ; if (p2_dy < 4) p2_dy += 1;
 ;
-L0135:	lda     _p2_dy
+L0145:	lda     _p2_dy
 	sec
 	sbc     #$04
-	bvc     L009A
+	bvc     L009B
 	eor     #$80
-L009A:	bpl     L0136
+L009B:	bpl     L0146
 	inc     _p2_dy
 ;
 ; p2_y += p2_dy;
 ;
-L0136:	lda     _p2_dy
+L0146:	lda     _p2_dy
 	clc
 	adc     _p2_y
 	sta     _p2_y
@@ -1301,14 +1350,14 @@ L0136:	lda     _p2_dy
 ; if(p2_dy >= 0){
 ;
 	ldx     _p2_dy
-	jmi     L013D
+	jmi     L014D
 ;
 ; if(p2_y >= FLOOR_Y){
 ;
 	lda     _p2_y
 	cmp     #$C0
 	lda     #$00
-	bcc     L013A
+	bcc     L014A
 ;
 ; p2_y = FLOOR_Y;
 ;
@@ -1328,10 +1377,10 @@ L0136:	lda     _p2_dy
 ; for(i = 0; i < 3; i++){
 ;
 	lda     #$00
-L013A:	sta     _i
-L013B:	lda     _i
+L014A:	sta     _i
+L014B:	lda     _i
 	cmp     #$03
-	jcs     L013D
+	jcs     L014D
 ;
 ; if (p2_y >= (platforms[i].y-22) && p2_y < (platforms[i].y-22) + 8){
 ;
@@ -1352,10 +1401,10 @@ L013B:	lda     _i
 	lda     (ptr1),y
 	sec
 	sbc     #$16
-	bcs     L00A5
+	bcs     L00A6
 	dex
-L00A5:	jsr     tosicmp
-	jmi     L013C
+L00A6:	jsr     tosicmp
+	jmi     L014C
 	lda     _p2_y
 	jsr     pusha0
 	lda     _i
@@ -1373,14 +1422,14 @@ L00A5:	jsr     tosicmp
 	lda     (ptr1),y
 	sec
 	sbc     #$16
-	bcs     L00A7
+	bcs     L00A8
 	dex
-L00A7:	clc
+L00A8:	clc
 	adc     #$08
-	bcc     L00A8
+	bcc     L00A9
 	inx
-L00A8:	jsr     tosicmp
-	jpl     L013C
+L00A9:	jsr     tosicmp
+	jpl     L014C
 ;
 ; if (p2_x + 8 > platforms[i].x && p2_x < platforms[i].x + platforms[i].w){
 ;
@@ -1388,9 +1437,9 @@ L00A8:	jsr     tosicmp
 	lda     _p2_x
 	clc
 	adc     #$08
-	bcc     L00AC
+	bcc     L00AD
 	inx
-L00AC:	jsr     pushax
+L00AD:	jsr     pushax
 	ldx     #$00
 	lda     _i
 	jsr     mulax3
@@ -1405,8 +1454,8 @@ L00AC:	jsr     pushax
 	ldx     #$00
 	lda     (ptr1,x)
 	jsr     tosicmp0
-	bmi     L013C
-	beq     L013C
+	bmi     L014C
+	beq     L014C
 	lda     _p2_x
 	jsr     pusha0
 	lda     _i
@@ -1438,10 +1487,10 @@ L00AC:	jsr     pushax
 	lda     (ptr1),y
 	clc
 	adc     sreg
-	bcc     L00E7
+	bcc     L00F7
 	inx
-L00E7:	jsr     tosicmp
-	bpl     L013C
+L00F7:	jsr     tosicmp
+	bpl     L014C
 ;
 ; p2_y = (platforms[i].y-22);
 ;
@@ -1473,16 +1522,16 @@ L00E7:	jsr     tosicmp
 ;
 ; for(i = 0; i < 3; i++){
 ;
-L013C:	inc     _i
-	jmp     L013B
+L014C:	inc     _i
+	jmp     L014B
 ;
 ; if((pad2 & PAD_B) && (b2 == 0)){
 ;
-L013D:	lda     _pad2
+L014D:	lda     _pad2
 	and     #$40
-	beq     L0142
+	beq     L0152
 	lda     _b2
-	bne     L0142
+	bne     L0152
 ;
 ; b2_y = p2_y + 2;
 ;
@@ -1499,7 +1548,7 @@ L013D:	lda     _pad2
 ; if(p2_facing == 0){
 ;
 	lda     _p2_facing
-	bne     L0141
+	bne     L0151
 ;
 ; b2_x = p2_x - 4;
 ;
@@ -1519,11 +1568,11 @@ L013D:	lda     _pad2
 ;
 ; } else {
 ;
-	jmp     L00EC
+	jmp     L00FC
 ;
 ; b2_x = p2_x + 4;
 ;
-L0141:	lda     _p2_x
+L0151:	lda     _p2_x
 	clc
 	adc     #$04
 	sta     _b2_x
@@ -1536,18 +1585,18 @@ L0141:	lda     _p2_x
 ; p2_dx = -8;
 ;
 	lda     #$F8
-L00EC:	sta     _p2_dx
+L00FC:	sta     _p2_dx
 ;
 ; if(b2 == 1){
 ;
-L0142:	lda     _b2
+L0152:	lda     _b2
 	cmp     #$01
-	bne     L0145
+	bne     L0153
 ;
 ; if(p2_facing == 0)
 ;
 	lda     _p2_facing
-	bne     L00BB
+	bne     L00BC
 ;
 ; oam_spr(b2_x, b2_y, 0x02, 0);
 ;
@@ -1562,11 +1611,11 @@ L0142:	lda     _b2
 ;
 ; else
 ;
-	jmp     L0156
+	jmp     L016F
 ;
 ; oam_spr(b2_x, b2_y, 0x03, 0);
 ;
-L00BB:	jsr     decsp3
+L00BC:	jsr     decsp3
 	lda     _b2_x
 	ldy     #$02
 	sta     (c_sp),y
@@ -1574,63 +1623,67 @@ L00BB:	jsr     decsp3
 	dey
 	sta     (c_sp),y
 	lda     #$03
-L0156:	dey
+L016F:	dey
 	sta     (c_sp),y
 	tya
 	jsr     _oam_spr
 ;
-; b2_x += b2_vx;
+; b2_x += b2_vx * b2_multi;
 ;
+	ldx     #$00
 	lda     _b2_vx
+	bpl     L00BE
+	dex
+L00BE:	jsr     pushax
+	lda     _b2_multi
+	jsr     tosmula0
 	clc
 	adc     _b2_x
 	sta     _b2_x
 ;
-; if(b2_x > 250) b2 = 0;
+; if(b2_x > 245) b2 = 0;
 ;
-	cmp     #$FB
-	bcc     L0145
+	cmp     #$F6
+	bcc     L0153
 	lda     #$00
 	sta     _b2
 ;
 ; if(b1 == 1){
 ;
-L0145:	lda     _b1
+L0153:	lda     _b1
 	cmp     #$01
-	bne     L0147
+	bne     L0155
 ;
 ; if( (b1_x >= p2_x) && (b1_x <= p2_x + 15) && (b1_y >= p2_y) && (b1_y <= p2_y + 15) ){
 ;
 	lda     _b1_x
 	cmp     _p2_x
-	bcc     L0147
-	lda     _b1_x
+	bcc     L0155
 	jsr     pusha0
 	lda     _p2_x
-	clc
-	adc     #$0F
-	bcc     L00C2
-	ldx     #$01
-L00C2:	jsr     tosicmp
-	beq     L00EE
-	bpl     L0147
-L00EE:	lda     _b1_y
-	cmp     _p2_y
-	bcc     L0147
-	lda     _b1_y
-	jsr     pusha0
-	lda     _p2_y
 	clc
 	adc     #$0F
 	bcc     L00C3
 	ldx     #$01
 L00C3:	jsr     tosicmp
-	bmi     L00C4
-	bne     L0147
+	beq     L00FE
+	bpl     L0155
+L00FE:	lda     _b1_y
+	cmp     _p2_y
+	bcc     L0155
+	jsr     pusha0
+	lda     _p2_y
+	clc
+	adc     #$0F
+	bcc     L00C4
+	ldx     #$01
+L00C4:	jsr     tosicmp
+	bmi     L00C5
+	bne     L0155
 ;
 ; p1_x = 40;
 ;
-L00C4:	lda     #$28
+L00C5:	lda     #$28
 	sta     _p1_x
 ;
 ; p2_x = 200;
@@ -1664,44 +1717,66 @@ L00C4:	lda     #$28
 	lda     #$01
 	sta     _p1changed
 ;
+; b1_multi = 1;
+;
+	sta     _b1_multi
+;
+; b2_multi = 1;
+;
+	sta     _b2_multi
+;
+; powerup_active = 0;
+;
+	lda     #$00
+	sta     _powerup_active
+;
+; random = (rand() % (150 - 50 + 1)) + 50;
+;
+	jsr     _rand
+	jsr     pushax
+	ldx     #$00
+	lda     #$65
+	jsr     tosmoda0
+	clc
+	adc     #$32
+	sta     _random
+;
 ; if(b2 == 1){
 ;
-L0147:	lda     _b2
+L0155:	lda     _b2
 	cmp     #$01
-	bne     L00C7
+	bne     L0157
 ;
 ; if( (b2_x >= p1_x) && (b2_x <= p1_x + 15) && (b2_y >= p1_y) && (b2_y <= p1_y + 15) ){
 ;
 	lda     _b2_x
 	cmp     _p1_x
-	bcc     L00C7
-	lda     _b2_x
+	bcc     L0157
 	jsr     pusha0
 	lda     _p1_x
 	clc
 	adc     #$0F
-	bcc     L00C9
+	bcc     L00CB
 	ldx     #$01
-L00C9:	jsr     tosicmp
-	beq     L00EF
-	bpl     L00C7
-L00EF:	lda     _b2_y
+L00CB:	jsr     tosicmp
+	beq     L00FF
+	bpl     L0157
+L00FF:	lda     _b2_y
 	cmp     _p1_y
-	bcc     L00C7
-	lda     _b2_y
+	bcc     L0157
 	jsr     pusha0
 	lda     _p1_y
 	clc
 	adc     #$0F
-	bcc     L00CA
+	bcc     L00CC
 	ldx     #$01
-L00CA:	jsr     tosicmp
-	bmi     L00CB
-	bne     L00C7
+L00CC:	jsr     tosicmp
+	bmi     L00CD
+	bne     L0157
 ;
 ; p1_x = 40;
 ;
-L00CB:	lda     #$28
+L00CD:	lda     #$28
 	sta     _p1_x
 ;
 ; p2_x = 200;
@@ -1735,9 +1810,109 @@ L00CB:	lda     #$28
 	lda     #$01
 	sta     _p2changed
 ;
+; b1_multi = 1;
+;
+	sta     _b1_multi
+;
+; b2_multi = 1;
+;
+	sta     _b2_multi
+;
+; powerup_active = 0;
+;
+	lda     #$00
+	sta     _powerup_active
+;
+; random = (rand() % (150 - 50 + 1)) + 50;
+;
+	jsr     _rand
+	jsr     pushax
+	ldx     #$00
+	lda     #$65
+	jsr     tosmoda0
+	clc
+	adc     #$32
+	sta     _random
+;
+; if(p1_x >= random - 10 && p1_x <= random + 10 && p1_y >= 118 && p1_y <= 130){
+;
+L0157:	lda     _p1_x
+	jsr     pusha0
+	lda     _random
+	sec
+	sbc     #$0A
+	bcs     L00D1
+	ldx     #$FF
+L00D1:	jsr     tosicmp
+	bmi     L015B
+	lda     _p1_x
+	jsr     pusha0
+	lda     _random
+	clc
+	adc     #$0A
+	bcc     L00D3
+	ldx     #$01
+L00D3:	jsr     tosicmp
+	beq     L0100
+	bpl     L015B
+L0100:	lda     _p1_y
+	cmp     #$76
+	bcc     L015B
+	lda     _p1_y
+	cmp     #$83
+	bcc     L015A
+	jmp     L015B
+;
+; b1_multi = 2;
+;
+L015A:	lda     #$02
+	sta     _b1_multi
+;
+; powerup_active = 1;
+;
+	lda     #$01
+	sta     _powerup_active
+;
+; if(p2_x >= random - 10 && p2_x <= random + 10 && p2_y >= 118 && p2_y <= 130){
+;
+L015B:	lda     _p2_x
+	jsr     pusha0
+	lda     _random
+	sec
+	sbc     #$0A
+	bcs     L00D7
+	ldx     #$FF
+L00D7:	jsr     tosicmp
+	bmi     L00D6
+	lda     _p2_x
+	jsr     pusha0
+	lda     _random
+	clc
+	adc     #$0A
+	bcc     L00D9
+	ldx     #$01
+L00D9:	jsr     tosicmp
+	beq     L0101
+	bpl     L00D6
+L0101:	lda     _p2_y
+	cmp     #$76
+	bcc     L00D6
+	cmp     #$83
+	bcs     L00D6
+;
+; b2_multi = 2;
+;
+	lda     #$02
+	sta     _b2_multi
+;
+; powerup_active = 1;
+;
+	lda     #$01
+	sta     _powerup_active
+;
 ; oam_spr(p1_x, p1_y, 0x41, 0);
 ;
-L00C7:	jsr     decsp3
+L00D6:	jsr     decsp3
 	lda     _p1_x
 	ldy     #$02
 	sta     (c_sp),y
@@ -1871,11 +2046,31 @@ L00C7:	jsr     decsp3
 	tya
 	jsr     _oam_spr
 ;
+; if(powerup_active == 0){
+;
+	lda     _powerup_active
+	bne     L015F
+;
+; oam_spr(random, 120, 0x04, 0);
+;
+	jsr     decsp3
+	lda     _random
+	ldy     #$02
+	sta     (c_sp),y
+	lda     #$78
+	dey
+	sta     (c_sp),y
+	lda     #$04
+	dey
+	sta     (c_sp),y
+	tya
+	jsr     _oam_spr
+;
 ; if(pad1 & PAD_SELECT){
 ;
-	lda     _pad1
+L015F:	lda     _pad1
 	and     #$20
-	beq     L00D5
+	beq     L00E5
 ;
 ; ppu_off();
 ;
@@ -1891,9 +2086,9 @@ L00C7:	jsr     decsp3
 ;
 	lda     #$00
 	sta     _i
-L0149:	lda     _i
+L0160:	lda     _i
 	cmp     #$FE
-	bcs     L014A
+	bcs     L0161
 ;
 ; vram_put(0x00); 
 ;
@@ -1903,15 +2098,15 @@ L0149:	lda     _i
 ; for(i = 0; i < 254; i++) {
 ;
 	inc     _i
-	jmp     L0149
+	jmp     L0160
 ;
 ; for(i = 0; i < 250; i++) {
 ;
-L014A:	lda     #$00
+L0161:	lda     #$00
 	sta     _i
-L014B:	lda     _i
+L0162:	lda     _i
 	cmp     #$FA
-	bcs     L014C
+	bcs     L0163
 ;
 ; vram_put(0x00); 
 ;
@@ -1921,15 +2116,15 @@ L014B:	lda     _i
 ; for(i = 0; i < 250; i++) {
 ;
 	inc     _i
-	jmp     L014B
+	jmp     L0162
 ;
 ; for(i = 0; i < 250; i++) {
 ;
-L014C:	lda     #$00
+L0163:	lda     #$00
 	sta     _i
-L014D:	lda     _i
+L0164:	lda     _i
 	cmp     #$FA
-	bcs     L014E
+	bcs     L0165
 ;
 ; vram_put(0x00); 
 ;
@@ -1939,15 +2134,15 @@ L014D:	lda     _i
 ; for(i = 0; i < 250; i++) {
 ;
 	inc     _i
-	jmp     L014D
+	jmp     L0164
 ;
 ; for(i = 0; i < 130; i++) {
 ;
-L014E:	lda     #$00
+L0165:	lda     #$00
 	sta     _i
-L014F:	lda     _i
+L0166:	lda     _i
 	cmp     #$82
-	bcs     L00E3
+	bcs     L00F3
 ;
 ; vram_put(0x00); 
 ;
@@ -1957,11 +2152,11 @@ L014F:	lda     _i
 ; for(i = 0; i < 130; i++) {
 ;
 	inc     _i
-	jmp     L014F
+	jmp     L0166
 ;
 ; drawl_title_screen();
 ;
-L00E3:	jsr     _drawl_title_screen
+L00F3:	jsr     _drawl_title_screen
 ;
 ; ppu_on_all();
 ;
@@ -1974,11 +2169,11 @@ L00E3:	jsr     _drawl_title_screen
 ;
 ; }
 ;
-L00D5:	jsr     incsp6
+L00E5:	jsr     incsp6
 ;
 ; while (1){
 ;
-	jmp     L00F0
+	jmp     L0102
 
 .endproc
 
