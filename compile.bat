@@ -1,6 +1,6 @@
 @echo off
 
-set name="hello"
+set name="supergunbros"
 
 set path=%path%;..\bin\
 
