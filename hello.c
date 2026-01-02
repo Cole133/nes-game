@@ -17,16 +17,19 @@
 unsigned char i, j;
 
 unsigned char pad1, p1_facing, p1grounded, p1score, p1changed, p1_x, p1_y, b1_x, b1_y, b1_multi, b1;
-signed char p1_dy, p1_dx, b1_vx;
+signed char p1_dy, p1_dy_multi, p1_dx, p1_dx_multi, b1_vx;
 
 unsigned char pad2, p2_facing, p2grounded, p2score, p2changed, p2_x, p2_y, b2_x, b2_y, b2_multi, b2;
-signed char p2_dy, p2_dx, b2_vx;
+signed char p2_dy, p2_dy_multi, p2_dx, p2_dx_multi, b2_vx;
 
 unsigned char map_id;
 unsigned char game_state;
+
 unsigned char powerup_active;
+unsigned char powerup_type;
+
 unsigned char random;
-unsigned char new_random;
+
 
 struct Platform {
 	unsigned char x;
@@ -69,6 +72,28 @@ void drawl_title_screen(){
     vram_put(0x33);
 }
 
+void reset_game(){
+	p1_x = 40;
+	p2_x = 200;
+
+	p1_y = 200;
+	p2_y = 200;
+
+	b1 = 0;
+	b2 = 0;
+
+	b1_multi = 1;
+	b2_multi = 1;
+	p1_dx_multi = 1;
+	p1_dy_multi = 1;
+	p2_dx_multi = 1;
+	p2_dy_multi = 1;
+	powerup_active = 0;
+
+	random = (rand() % (150 - 50 + 1)) + 50;
+	powerup_type = rand() % 3;
+}
+
 void main (void) {
 
 	// Setup Player Variables
@@ -79,9 +104,13 @@ void main (void) {
 	p2_y = 200;
 
 	p1_dy = 0;
+	p1_dy_multi = 1;
 	p1_dx = 0;
+	p1_dx_multi = 1;
 	p2_dy = 0;
+	p2_dy_multi = 1;
 	p2_dx = 0;
+	p2_dx_multi = 1;
 
 	p1score = 0;
 	p2score = 0;
@@ -94,9 +123,10 @@ void main (void) {
 	
 	game_state = 0;
 	map_id = 0;
+
+	powerup_type = rand() % 3;
 	powerup_active = 0;
 
-	new_random = 0;
 	random = (rand() % (150 - 50 + 1)) + 50;
 
 	ppu_off(); 
@@ -121,7 +151,6 @@ void main (void) {
             ppu_wait_nmi();
             
             pad1 = pad_poll(0);
-            
             
             if (pad1 & PAD_LEFT)  map_id = 0;
             if (pad1 & PAD_UP)    map_id = 1; 
@@ -221,8 +250,8 @@ void main (void) {
 				if(p1_dx < 0) ++p1_dx;
 			}
 
-			if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx;
-			if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx;
+			if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx * p1_dx_multi;
+			if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx * p1_dx_multi;
 
 			// Vertical Movment
 
@@ -233,7 +262,7 @@ void main (void) {
 
 			if (p1_dy < 4) p1_dy += 1;
 
-			p1_y += p1_dy;
+			p1_y += p1_dy * p1_dy_multi;
 			p1grounded = 0;
 
 			// Collision
@@ -305,8 +334,8 @@ void main (void) {
 				if(p2_dx < 0) ++p2_dx;
 			}
 
-			if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx;
-			if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx;
+			if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx * p2_dx_multi;
+			if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx * p2_dx_multi;
 
 			// Vertical Movment
 
@@ -317,7 +346,7 @@ void main (void) {
 
 			if (p2_dy < 4) p2_dy += 1;
 
-			p2_y += p2_dy;
+			p2_y += p2_dy * p2_dy_multi;
 			p2grounded = 0;
 			
 			// Collision
@@ -375,57 +404,43 @@ void main (void) {
 
 			if(b1 == 1){
 				if( (b1_x >= p2_x) && (b1_x <= p2_x + 15) && (b1_y >= p2_y) && (b1_y <= p2_y + 15) ){
-					p1_x = 40;
-					p2_x = 200;
-
-					p1_y = 200;
-					p2_y = 200;
-
-					b1 = 0;
-					b2 = 0;
-
 					p1score++;
 					p1changed = 1;
 
-					b1_multi = 1;
-					b2_multi = 1;
-					powerup_active = 0;
-
-					random = (rand() % (150 - 50 + 1)) + 50;
+					reset_game();
 				}
 			}
 
 			if(b2 == 1){
 				if( (b2_x >= p1_x) && (b2_x <= p1_x + 15) && (b2_y >= p1_y) && (b2_y <= p1_y + 15) ){
-					p1_x = 40;
-					p2_x = 200;
-
-					p1_y = 200;
-					p2_y = 200;
-
-					b1 = 0;
-					b2 = 0;
-
 					p2score++;
 					p2changed = 1;
 
-					b1_multi = 1;
-					b2_multi = 1;
-					powerup_active = 0;
-
-					random = (rand() % (150 - 50 + 1)) + 50;
+					reset_game();
 				}
 			}
 
 			// Power Up
 
 			if(p1_x >= random - 10 && p1_x <= random + 10 && p1_y >= 118 && p1_y <= 130){
-				b1_multi = 2;
+				if(powerup_type == 0)
+					b1_multi = 2;
+				else if(powerup_type == 1)
+					p1_dx_multi = 2;
+				else
+					p1_dy_multi = 2;
+
 				powerup_active = 1;
 			}
 
 			if(p2_x >= random - 10 && p2_x <= random + 10 && p2_y >= 118 && p2_y <= 130){
-				b2_multi = 2;
+				if(powerup_type == 0)
+					b2_multi = 2;
+				else if(powerup_type == 1)
+					p2_dx_multi = 2;
+				else
+					p2_dy_multi = 2;
+
 				powerup_active = 1;
 			}
 
