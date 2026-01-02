@@ -264,7 +264,10 @@ void main (void) {
 			}
 
 			if(b1 == 1){
-				oam_spr(b1_x, b1_y, 0x02, 0);
+				if(p1_facing == 0)
+					oam_spr(b1_x, b1_y, 0x02, 0);
+				else
+					oam_spr(b1_x, b1_y, 0x03, 0);
 
 				b1_x += b1_vx;
 				
@@ -347,7 +350,10 @@ void main (void) {
 			}
 
 			if(b2 == 1){
-				oam_spr(b2_x, b2_y, 0x02, 0);
+				if(p2_facing == 0)
+					oam_spr(b2_x, b2_y, 0x02, 0);
+				else
+					oam_spr(b2_x, b2_y, 0x03, 0);
 
 				b2_x += b2_vx;
 
