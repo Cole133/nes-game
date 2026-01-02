@@ -16,9 +16,11 @@
 
 unsigned char i, j;
 
+unsigned char player1_class, player1_bullet_multi, player1_agile_multi;
 unsigned char pad1, p1_facing, p1grounded, p1score, p1changed, p1_x, p1_y, b1_x, b1_y, b1_multi, b1;
 signed char p1_dy, p1_dy_multi, p1_dx, p1_dx_multi, b1_vx;
 
+unsigned char player2_class, player2_bullet_multi, player2_agile_multi;
 unsigned char pad2, p2_facing, p2grounded, p2score, p2changed, p2_x, p2_y, b2_x, b2_y, b2_multi, b2;
 signed char p2_dy, p2_dy_multi, p2_dx, p2_dx_multi, b2_vx;
 
@@ -62,6 +64,19 @@ BLACK, 0x16, 0x28, WHITE,
 // Draws the title screen
 
 void drawl_title_screen(){
+	// Map selection
+	vram_adr(NTADR_A(11, 10)); 
+	vram_put(0x4D);
+	vram_put(0x61);
+	vram_put(0x70);
+	vram_put(0x00);
+	vram_put(0x53);
+	vram_put(0x65);
+	vram_put(0x6C);
+	vram_put(0x65);
+	vram_put(0x63);
+	vram_put(0x74);
+	
 	vram_adr(NTADR_A(10, 14)); 
     vram_put(0x31); 
 
@@ -70,6 +85,27 @@ void drawl_title_screen(){
 
     vram_adr(NTADR_A(22, 14));
     vram_put(0x33);
+
+	// Class Selection
+	vram_adr(NTADR_A(7, 3));
+	vram_put(0x50);
+	vram_put(0x31);
+
+	vram_adr(NTADR_A(6, 6)); 
+    vram_put(0x31); 
+
+	vram_adr(NTADR_A(10, 6)); 
+    vram_put(0x32); 
+
+	vram_adr(NTADR_A(23, 3));
+	vram_put(0x50);
+	vram_put(0x32);
+
+	vram_adr(NTADR_A(22, 6)); 
+    vram_put(0x31); 
+
+	vram_adr(NTADR_A(26, 6)); 
+    vram_put(0x32); 
 }
 
 void reset_game(){
@@ -107,10 +143,18 @@ void main (void) {
 	p1_dy_multi = 1;
 	p1_dx = 0;
 	p1_dx_multi = 1;
+	player1_agile_multi = 2;
+	player1_bullet_multi = 1;
+	player1_class = 0;
+
+
 	p2_dy = 0;
 	p2_dy_multi = 1;
 	p2_dx = 0;
 	p2_dx_multi = 1;
+	player2_agile_multi = 2;
+	player2_bullet_multi = 1;
+	player2_class = 0;
 
 	p1score = 0;
 	p2score = 0;
@@ -155,13 +199,37 @@ void main (void) {
             if (pad1 & PAD_LEFT)  map_id = 0;
             if (pad1 & PAD_UP)    map_id = 1; 
             if (pad1 & PAD_RIGHT) map_id = 2;
+
+			if(pad1 & PAD_A) {
+				player1_agile_multi = 1;
+				player1_bullet_multi = 2;
+				player1_class = 1;
+			}
+			if(pad1 & PAD_B){
+				player1_agile_multi = 2;
+				player1_bullet_multi = 1;
+				player1_class = 0;
+			}
+
+			if(pad2 & PAD_A) {
+				player2_agile_multi = 1;
+				player2_bullet_multi = 2;
+				player2_class = 1;
+			}
+			if(pad2 & PAD_B){
+				player2_agile_multi = 2;
+				player2_bullet_multi = 1;
+				player2_class = 0;
+			}
             
             
             oam_clear();
             oam_spr(80 + (map_id * 48), 100, 0x41, 0); 
+			oam_spr(47 + (player1_class * 32), 37, 0x41, 0);
+			oam_spr(175 + (player2_class * 32), 37, 0x41, 0);
             
             // SELECT MAP
-            if (pad1 & PAD_START || pad1 & PAD_A) {
+            if (pad1 & PAD_START) {
                 
                 ppu_off();
 
@@ -250,8 +318,8 @@ void main (void) {
 				if(p1_dx < 0) ++p1_dx;
 			}
 
-			if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx * p1_dx_multi;
-			if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx * p1_dx_multi;
+			if(p1_dx > 0 && p1_x < 245) p1_x += p1_dx * p1_dx_multi * player1_agile_multi;
+			if(p1_dx < 0 && p1_x > 10) p1_x += p1_dx * p1_dx_multi * player1_agile_multi;
 
 			// Vertical Movment
 
@@ -262,7 +330,7 @@ void main (void) {
 
 			if (p1_dy < 4) p1_dy += 1;
 
-			p1_y += p1_dy * p1_dy_multi;
+			p1_y += p1_dy * p1_dy_multi * player1_agile_multi;
 			p1grounded = 0;
 
 			// Collision
@@ -309,7 +377,7 @@ void main (void) {
 				else
 					oam_spr(b1_x, b1_y, 0x03, 0);
 
-				b1_x += b1_vx * b1_multi;
+				b1_x += b1_vx * b1_multi * player1_bullet_multi;
 				
 				if(b1_x > 245) b1 = 0;
 			}
@@ -334,8 +402,8 @@ void main (void) {
 				if(p2_dx < 0) ++p2_dx;
 			}
 
-			if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx * p2_dx_multi;
-			if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx * p2_dx_multi;
+			if(p2_dx > 0 && p2_x < 245) p2_x += p2_dx * p2_dx_multi * player2_agile_multi;
+			if(p2_dx < 0 && p2_x > 10) p2_x += p2_dx * p2_dx_multi * player2_agile_multi;
 
 			// Vertical Movment
 
@@ -346,7 +414,7 @@ void main (void) {
 
 			if (p2_dy < 4) p2_dy += 1;
 
-			p2_y += p2_dy * p2_dy_multi;
+			p2_y += p2_dy * p2_dy_multi * player2_agile_multi;
 			p2grounded = 0;
 			
 			// Collision
@@ -395,7 +463,7 @@ void main (void) {
 				else
 					oam_spr(b2_x, b2_y, 0x03, 0);
 
-				b2_x += b2_vx * b2_multi;
+				b2_x += b2_vx * b2_multi * player2_bullet_multi;
 
 				if(b2_x > 245) b2 = 0;
 			}
