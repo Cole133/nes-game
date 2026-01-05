@@ -28,12 +28,13 @@ Due to the limited stack size and addressing modes of the MOS 6502 processor, th
 ### Data Structures
 Level data is stored efficiently using a constant array of structs, minimizing ROM usage:
 
-```c
+```
 struct Platform {
     unsigned char x;
     unsigned char y;
     unsigned char w;
-}; ```
+}; 
+```
 
 Collision detection uses Axis-Aligned Bounding Boxes (AABB) for both entity-vs-environment and entity-vs-projectile interactions.
 
@@ -65,8 +66,9 @@ This project targets the **cc65** compiler suite and includes a batch script for
 ### Compilation
 To compile the source code into an `.nes` ROM file, simply run the provided build script from the project root:
 
-```cmd
-compile.bat```
+```
+compile.bat
+```
 
 This script handles the compiling, assembling, and linking steps automatically.
 
